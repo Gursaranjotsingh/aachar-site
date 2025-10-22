@@ -34,10 +34,14 @@
             <h1 class="text-3xl font-extrabold text-primary tracking-tight">
                 The Achhar House
             </h1>
-            <nav class="hidden md:flex space-x-8">
+            <nav class="hidden md:flex space-x-8 items-center">
                 <a href="#products" class="text-gray-600 hover:text-primary transition duration-300">Our Pickles</a>
                 <a href="#story" class="text-gray-600 hover:text-primary transition duration-300">Our Story</a>
-                <!-- Removed 'Watch Us' link -->
+                <!-- New Auth Button (Google Login/Logout) -->
+                <button id="auth-button-desktop" class="px-3 py-2 border border-primary text-primary font-bold rounded-full hover:bg-primary hover:text-white transition duration-300 flex items-center">
+                    <svg id="google-icon-desktop" class="w-5 h-5 mr-1" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.63 0-12 5.37-12 12s5.37 12 12 12 12-5.37 12-12-5.37-12-12-12zm.17 19.34c-4.04 0-7.31-3.27-7.31-7.31s3.27-7.31 7.31-7.31c2.09 0 3.79.79 5.09 2.09l-1.92 1.84c-.69-.73-1.8-1.24-3.17-1.24-2.73 0-4.96 2.23-4.96 4.96s2.23 4.96 4.96 4.96c2.47 0 3.65-1.01 4.31-1.67h-4.31v-2.12h6.88c.08.4.12.83.12 1.3 0 4.14-2.85 7.01-7.07 7.01z"/></svg>
+                    Login
+                </button>
                 <a href="#contact" class="px-4 py-2 bg-secondary text-primary font-bold rounded-full hover:bg-yellow-400 transition duration-300">Order Now</a>
             </nav>
             <button id="menu-button" class="md:hidden text-primary focus:outline-none">
@@ -48,7 +52,11 @@
         <div id="mobile-menu" class="hidden md:hidden bg-white px-4 pt-2 pb-4 space-y-1">
             <a href="#products" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-50">Our Pickles</a>
             <a href="#story" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-50">Our Story</a>
-            <!-- Removed 'Watch Us' link -->
+            <!-- New Auth Button (Google Login/Logout) -->
+            <button id="auth-button-mobile" class="w-full text-center px-3 py-2 mt-2 border border-primary text-primary font-bold rounded-full hover:bg-primary hover:text-white transition duration-300 flex justify-center items-center">
+                <svg id="google-icon-mobile" class="w-5 h-5 mr-1" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.63 0-12 5.37-12 12s5.37 12 12 12 12-5.37 12-12-5.37-12-12-12zm.17 19.34c-4.04 0-7.31-3.27-7.31-7.31s3.27-7.31 7.31-7.31c2.09 0 3.79.79 5.09 2.09l-1.92 1.84c-.69-.73-1.8-1.24-3.17-1.24-2.73 0-4.96 2.23-4.96 4.96s2.23 4.96 4.96 4.96c2.47 0 3.65-1.01 4.31-1.67h-4.31v-2.12h6.88c.08.4.12.83.12 1.3 0 4.14-2.85 7.01-7.07 7.01z"/></svg>
+                Login
+            </button>
             <a href="#contact" class="block w-full text-center px-3 py-2 mt-2 bg-secondary text-primary font-bold rounded-full hover:bg-yellow-400">Order Now</a>
         </div>
     </header>
@@ -185,8 +193,6 @@
                 </div>
             </div>
         </section>
-
-        <!-- Removed Video Showcase Section -->
         
         <!-- Contact & Order Section -->
         <section id="contact" class="py-20 md:py-32 bg-light">
@@ -197,7 +203,7 @@
                         Ready to Order?
                     </h3>
                     <p class="mt-4 text-xl text-gray-500">
-                        Fill out the form below. Pressing 'Place Inquiry / Order' will open your email client with a pre-filled draft addressed to **gursaranjotsingh455@gmail.com** for confirmation.
+                        Fill out the form below. Pressing 'Place Inquiry / Order' will securely **save your order details to our database** for processing.
                     </p>
                 </div>
                 
@@ -222,9 +228,9 @@
                                 Place Inquiry / Order
                             </button>
                         </div>
-                        <!-- Updated Success Message Box -->
+                        <!-- Success/Error Message Box (Content set dynamically by JS) -->
                         <div id="success-message" class="hidden mt-6 p-4 rounded-lg bg-green-100 text-green-700 font-medium border border-green-300">
-                            **Success!** Please check your email client (like Gmail or Outlook)—a pre-filled order email is ready to send to gursaranjotsingh455@gmail.com.
+                            <!-- Content will be set by JavaScript -->
                         </div>
                     </form>
                 </div>
@@ -250,16 +256,119 @@
         </div>
     </footer>
 
-    <script>
+    <script type="module">
+        // 1. Firebase Imports (Required for all functions)
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // 2. Global Variables (Mandatory Canvas Globals)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+
+        let app, db, auth;
+        let userId = 'anonymous';
+
+        // 3. Firebase Initialization and Sign-in
+        async function initializeFirebase() {
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                // setLogLevel('Debug'); // Uncomment for debugging
+                
+                // Mandatory custom token/anonymous sign-in
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                
+            } catch (error) {
+                console.error("Firebase initialization failed:", error);
+            }
+        }
+        
+        // Global UI elements for state management
+        let authButtonDesktop;
+        let authButtonMobile;
+        let successMessage;
+        let orderForm;
+
+        // 4. Authentication State Listener
+        onAuthStateChanged(getAuth(), (user) => {
+            if (user) {
+                userId = user.uid;
+                const isLoggedIn = !user.isAnonymous;
+                
+                const buttonText = isLoggedIn ? 'Logout' : 'Login';
+                
+                if (authButtonDesktop) authButtonDesktop.textContent = buttonText;
+                if (authButtonMobile) authButtonMobile.textContent = buttonText;
+
+                // Display user ID for collaborative context (MANDATORY rule)
+                const footer = document.querySelector('footer .max-w-7xl');
+                let userIdDisplay = document.getElementById('user-id-display');
+                if (!userIdDisplay) {
+                    userIdDisplay = document.createElement('p');
+                    userIdDisplay.id = 'user-id-display';
+                    userIdDisplay.className = 'mt-4 text-sm text-gray-400 break-words';
+                    // Insert before the copyright notice
+                    footer.insertBefore(userIdDisplay, footer.querySelector('.text-sm.text-gray-600'));
+                }
+                const status = isLoggedIn ? 'Google User' : 'Guest';
+                userIdDisplay.innerHTML = `Auth Status: ${status} | ID: <span class="text-secondary font-mono">${userId}</span>`;
+
+            } else {
+                // User is signed out
+                userId = crypto.randomUUID(); // Fallback to a random ID for anonymous ops
+                if (authButtonDesktop) authButtonDesktop.textContent = 'Login';
+                if (authButtonMobile) authButtonMobile.textContent = 'Login';
+                const userIdDisplay = document.getElementById('user-id-display');
+                if (userIdDisplay) userIdDisplay.remove();
+            }
+        });
+
+        // 5. Google Sign In/Out Logic
+        async function handleGoogleSignIn() {
+            if (auth.currentUser && !auth.currentUser.isAnonymous) {
+                // User is logged in, sign them out
+                try {
+                    await signOut(auth);
+                } catch (error) {
+                    console.error("Sign out failed:", error);
+                }
+                return;
+            }
+
+            try {
+                const provider = new GoogleAuthProvider();
+                await signInWithPopup(auth, provider);
+            } catch (error) {
+                console.error("Google Sign-in failed:", error.code, error.message);
+                
+                // Simple custom message box logic (replacing alert())
+                successMessage.className = 'mt-6 p-4 rounded-lg bg-red-100 text-red-700 font-medium border border-red-300';
+                successMessage.textContent = 'Login failed: ' + (error.message || 'Check the console for details.');
+                successMessage.classList.remove('hidden');
+                setTimeout(() => { successMessage.classList.add('hidden'); }, 5000);
+            }
+        }
+
+        // --- DOM READY LOGIC ---
         document.addEventListener('DOMContentLoaded', () => {
-            const form = document.getElementById('order-form');
-            const successMessage = document.getElementById('success-message');
+            // Initialize Firebase and Auth State first
+            initializeFirebase();
+
+            // Cache DOM elements
+            orderForm = document.getElementById('order-form');
+            successMessage = document.getElementById('success-message');
             const menuButton = document.getElementById('menu-button');
             const mobileMenu = document.getElementById('mobile-menu');
-
-            // The target email for inquiries
-            const targetEmail = "gursaranjotsingh455@gmail.com";
-
+            authButtonDesktop = document.getElementById('auth-button-desktop');
+            authButtonMobile = document.getElementById('auth-button-mobile');
+            
             // --- Mobile Menu Toggle ---
             menuButton.addEventListener('click', () => {
                 mobileMenu.classList.toggle('hidden');
@@ -272,40 +381,59 @@
                 });
             });
 
+            // --- Authentication Button Handlers ---
+            authButtonDesktop.addEventListener('click', handleGoogleSignIn);
+            authButtonMobile.addEventListener('click', handleGoogleSignIn);
 
-            // --- Form Submission Handling (UPDATED FOR MAILTO) ---
-            form.addEventListener('submit', function(event) {
+            // --- Form Submission Handling (UPDATED FOR FIRESTORE) ---
+            orderForm.addEventListener('submit', async function(event) {
                 event.preventDefault();
                 
-                // Get form data
+                if (!db || !userId) {
+                    successMessage.className = 'mt-6 p-4 rounded-lg bg-red-100 text-red-700 font-medium border border-red-300';
+                    successMessage.textContent = 'Error: The app is still initializing the database connection. Please wait a moment and try again.';
+                    successMessage.classList.remove('hidden');
+                    return;
+                }
+
+                // Gather form data
                 const name = document.getElementById('name').value;
                 const phone = document.getElementById('phone').value;
-                const order = document.getElementById('order').value;
+                const orderDetails = document.getElementById('order').value;
 
-                // 1. Construct Email Body and Subject (using encodeURIComponent for safety)
-                const subject = encodeURIComponent(`New Achhar Order Inquiry from ${name}`);
-                const body = encodeURIComponent(`Hello,\n\nI would like to place an order for achhar:\n\nOrder Details:\n${order}\n\nMy Contact Information:\nName: ${name}\nPhone: ${phone}\n\nPlease confirm the order and payment details.\n\nThank you.`);
+                const orderData = {
+                    name: name,
+                    phone: phone,
+                    orderDetails: orderDetails,
+                    timestamp: new Date().toISOString(),
+                    userId: userId,
+                    status: 'Pending'
+                };
 
-                // 2. Create the mailto link
-                const mailtoLink = `mailto:${targetEmail}?subject=${subject}&body=${body}`;
+                try {
+                    // Save to private user-specific collection: /artifacts/{appId}/users/{userId}/orders
+                    const orderCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/orders`);
+                    
+                    // Add the document to Firestore
+                    await addDoc(orderCollectionRef, orderData);
 
-                // 3. Open the user's email client
-                window.location.href = mailtoLink;
-
-                // 4. Show success message (to confirm action and guide the user)
-                successMessage.classList.remove('hidden');
-                
-                // Clear the form after a short delay
-                setTimeout(() => {
-                    // Note: We don't call form.reset() here to allow user to retry if email client fails, but reset logic is often desired
-                    // If the mailto is successful, the user has the data. If not, they can quickly correct a typo and try again.
-                    // For a seamless demo, we will reset:
-                    form.reset();
-                    // Keep the success message visible for a bit longer to ensure the user reads the instructions
+                    // Success message
+                    successMessage.className = 'mt-6 p-4 rounded-lg bg-green-100 text-green-700 font-medium border border-green-300';
+                    successMessage.innerHTML = '**Order Placed!** Your order has been securely saved to our database for processing. We will contact you shortly to confirm payment and delivery details.';
+                    successMessage.classList.remove('hidden');
+                    
+                    // Clear the form and hide message after delay
+                    orderForm.reset();
                     setTimeout(() => {
                         successMessage.classList.add('hidden');
-                    }, 8000); 
-                }, 300);
+                    }, 5000);
+
+                } catch (error) {
+                    console.error("Error saving document to Firestore:", error);
+                    successMessage.className = 'mt-6 p-4 rounded-lg bg-red-100 text-red-700 font-medium border border-red-300';
+                    successMessage.textContent = 'Error placing order. Please check the console for details.';
+                    successMessage.classList.remove('hidden');
+                }
             });
         });
     </script>
